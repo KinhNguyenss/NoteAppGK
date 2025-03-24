@@ -11,11 +11,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
 import com.example.noteapppppppppppppp.data.Note
 import android.util.Log
+import android.content.Intent
 
 @Composable
 fun MainScreen(viewModel: NoteViewModel = viewModel()) {
@@ -24,14 +26,23 @@ fun MainScreen(viewModel: NoteViewModel = viewModel()) {
     var description by remember { mutableStateOf("") }
     val selectedNote by viewModel.selectedNote.collectAsState()
     val imageUri by viewModel.imageUri.collectAsState()
+    val context = LocalContext.current
 
     // Launcher để mở file picker
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
-        uri?.toString()?.let { uriString ->
-            Log.d("MainScreen", "Selected Image URI: $uriString")
-            viewModel.setImageUri(uriString)
+        uri?.let { imageUri ->
+            // Lưu quyền truy cập vĩnh viễn cho URI
+            try {
+                val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                context.contentResolver.takePersistableUriPermission(imageUri, takeFlags)
+                Log.d("MainScreen", "Persisted URI permission for: $imageUri")
+                viewModel.setImageUri(imageUri.toString())
+            } catch (e: SecurityException) {
+                Log.e("MainScreen", "Failed to persist URI permission: $e")
+            }
         }
     }
 
@@ -66,10 +77,10 @@ fun MainScreen(viewModel: NoteViewModel = viewModel()) {
                 onClick = {
                     val currentSelectedNote = selectedNote
                     if (currentSelectedNote == null) {
-                        Log.d("MainScreen", "Adding note with imageUri: $imageUri")
+                        Log.d("MainScreen", "Adding note with title=$title, description=$description, imageUri=$imageUri")
                         viewModel.addNote(title, description, imageUri)
                     } else {
-                        Log.d("MainScreen", "Updating note with imageUri: $imageUri")
+                        Log.d("MainScreen", "Updating note with id=${currentSelectedNote.id}, title=$title, description=$description, imageUri=$imageUri")
                         viewModel.updateNote(
                             currentSelectedNote.copy(
                                 title = title,
@@ -81,7 +92,7 @@ fun MainScreen(viewModel: NoteViewModel = viewModel()) {
                     }
                     title = ""
                     description = ""
-                    viewModel.setImageUri(null) // Reset imageUri sau khi lưu
+                    viewModel.setImageUri(null)
                 }
             ) {
                 Text(if (selectedNote == null) "Add Note" else "Update Note")
@@ -91,7 +102,7 @@ fun MainScreen(viewModel: NoteViewModel = viewModel()) {
                 Button(onClick = {
                     title = ""
                     description = ""
-                    viewModel.setImageUri(null) // Reset imageUri khi hủy
+                    viewModel.setImageUri(null)
                     viewModel.selectNote(null)
                 }) {
                     Text("Cancel")
@@ -106,7 +117,7 @@ fun MainScreen(viewModel: NoteViewModel = viewModel()) {
                     onClick = {
                         title = note.title
                         description = note.description
-                        viewModel.setImageUri(note.imageUri) // Load imageUri khi chọn note
+                        viewModel.setImageUri(note.imageUri)
                         viewModel.selectNote(note)
                     },
                     onDelete = { viewModel.deleteNote(note) }
@@ -128,13 +139,18 @@ fun NoteItem(note: Note, onClick: () -> Unit, onDelete: () -> Unit) {
             note.imageUri?.let { uri ->
                 Log.d("NoteItem", "Displaying image for note ${note.title}: $uri")
                 Image(
-                    painter = rememberAsyncImagePainter(uri),
+                    painter = rememberAsyncImagePainter(
+                        model = uri,
+                        onError = { error -> Log.e("NoteItem", "Failed to load image: ${error.result.throwable}") }
+                    ),
                     contentDescription = "Note Image",
                     modifier = Modifier
                         .size(50.dp)
                         .padding(end = 8.dp),
                     contentScale = ContentScale.Crop
                 )
+            } ?: run {
+                Log.d("NoteItem", "No image for note ${note.title}")
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = note.title, style = MaterialTheme.typography.titleMedium)

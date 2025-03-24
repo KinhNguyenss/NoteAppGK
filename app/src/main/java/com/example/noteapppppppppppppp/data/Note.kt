@@ -8,5 +8,5 @@ data class Note(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val title: String,
     val description: String,
-    val imageUri: String? = null // URI của ảnh, có thể null
+    val imageUri: String? = null
 )
