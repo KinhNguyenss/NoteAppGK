@@ -1,8 +1,5 @@
 package com.example.noteapppppppppppppp.view
 
-
-import android.Manifest
-import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -14,12 +11,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
 import com.example.noteapppppppppppppp.data.Note
+import android.util.Log
 
 @Composable
 fun MainScreen(viewModel: NoteViewModel = viewModel()) {
@@ -28,19 +24,14 @@ fun MainScreen(viewModel: NoteViewModel = viewModel()) {
     var description by remember { mutableStateOf("") }
     val selectedNote by viewModel.selectedNote.collectAsState()
     val imageUri by viewModel.imageUri.collectAsState()
-    val context = LocalContext.current
 
+    // Launcher để mở file picker
     val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
-        uri?.toString()?.let { viewModel.setImageUri(it) }
-    }
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            imagePickerLauncher.launch("image/*")
+        uri?.toString()?.let { uriString ->
+            Log.d("MainScreen", "Selected Image URI: $uriString")
+            viewModel.setImageUri(uriString)
         }
     }
 
@@ -62,29 +53,10 @@ fun MainScreen(viewModel: NoteViewModel = viewModel()) {
 
         Button(
             onClick = {
-                if (ContextCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.READ_MEDIA_IMAGES
-                    ) == PackageManager.PERMISSION_GRANTED
-                ) {
-                    imagePickerLauncher.launch("image/*")
-                } else {
-                    permissionLauncher.launch(Manifest.permission.READ_MEDIA_IMAGES)
-                }
+                imagePickerLauncher.launch(arrayOf("image/*"))
             }
         ) {
             Text("Pick Image")
-        }
-
-        imageUri?.let { uri ->
-            Image(
-                painter = rememberAsyncImagePainter(uri),
-                contentDescription = "Selected Image",
-                modifier = Modifier
-                    .size(100.dp)
-                    .padding(top = 8.dp),
-                contentScale = ContentScale.Crop
-            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -92,10 +64,12 @@ fun MainScreen(viewModel: NoteViewModel = viewModel()) {
         Row {
             Button(
                 onClick = {
-                    val currentSelectedNote = selectedNote // Lấy giá trị từ StateFlow
+                    val currentSelectedNote = selectedNote
                     if (currentSelectedNote == null) {
+                        Log.d("MainScreen", "Adding note with imageUri: $imageUri")
                         viewModel.addNote(title, description, imageUri)
                     } else {
+                        Log.d("MainScreen", "Updating note with imageUri: $imageUri")
                         viewModel.updateNote(
                             currentSelectedNote.copy(
                                 title = title,
@@ -107,6 +81,7 @@ fun MainScreen(viewModel: NoteViewModel = viewModel()) {
                     }
                     title = ""
                     description = ""
+                    viewModel.setImageUri(null) // Reset imageUri sau khi lưu
                 }
             ) {
                 Text(if (selectedNote == null) "Add Note" else "Update Note")
@@ -116,6 +91,7 @@ fun MainScreen(viewModel: NoteViewModel = viewModel()) {
                 Button(onClick = {
                     title = ""
                     description = ""
+                    viewModel.setImageUri(null) // Reset imageUri khi hủy
                     viewModel.selectNote(null)
                 }) {
                     Text("Cancel")
@@ -130,6 +106,7 @@ fun MainScreen(viewModel: NoteViewModel = viewModel()) {
                     onClick = {
                         title = note.title
                         description = note.description
+                        viewModel.setImageUri(note.imageUri) // Load imageUri khi chọn note
                         viewModel.selectNote(note)
                     },
                     onDelete = { viewModel.deleteNote(note) }
@@ -149,6 +126,7 @@ fun NoteItem(note: Note, onClick: () -> Unit, onDelete: () -> Unit) {
     ) {
         Row(modifier = Modifier.padding(16.dp)) {
             note.imageUri?.let { uri ->
+                Log.d("NoteItem", "Displaying image for note ${note.title}: $uri")
                 Image(
                     painter = rememberAsyncImagePainter(uri),
                     contentDescription = "Note Image",
