@@ -7,5 +7,6 @@ import androidx.room.PrimaryKey
 data class Note(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val title: String,
-    val description: String
+    val description: String,
+    val imageUri: String? = null // URI của ảnh, có thể null
 )
